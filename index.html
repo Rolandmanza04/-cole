@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Présence & sortie sécurisée</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#F3F5F9;--surface:#fff;--ink:#16223F;--mute:#5E6A85;--line:#DDE2EC;--brand:#1B2A4A;--sig:#FFC93C;--ok:#12805C;--okbg:#DDF3EA;--late:#B45F06;--latebg:#FDEBD0;--bad:#B3261E;--badbg:#FBE0DD;
+padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0E1424;--surface:#18213A;--ink:#EEF1F8;--mute:#9AA6C2;--line:#2B3656;--brand:#0A1020;--okbg:#10382B;--latebg:#3F2B0E;--badbg:#42191A;--ok:#4FD1A0;--late:#F5B05A;--bad:#FF8A80}}
+:root[data-theme="dark"]{--bg:#0E1424;--surface:#18213A;--ink:#EEF1F8;--mute:#9AA6C2;--line:#2B3656;--brand:#0A1020;--okbg:#10382B;--latebg:#3F2B0E;--badbg:#42191A;--ok:#4FD1A0;--late:#F5B05A;--bad:#FF8A80}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 16px 0;position:relative}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-size:20px;margin:0 0 2px;font-weight:800}
+h3{margin:18px 0 8px;font-size:17px}
+.sub{color:#B9C3DD;font-size:13px;margin:0 0 12px}
+nav{display:flex;gap:2px}
+nav button{flex:1;border:0;background:transparent;color:#B9C3DD;font-family:inherit;font-weight:600;font-size:13px;padding:12px 2px;border-bottom:3px solid transparent;cursor:pointer}
+nav button[aria-selected=true]{color:#fff;border-color:var(--sig)}
+main{padding:16px;max-width:760px;margin:0 auto}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:14px}
+label{font-size:12px;color:var(--mute);display:grid;gap:3px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0;width:100%}
+.bar label{width:auto}
+button{font-family:inherit}
+:focus-visible{outline:3px solid var(--sig);outline-offset:2px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:14px}
+.seg button{flex:1;padding:12px;border:0;background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--brand);color:#fff}
+.av{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;background:var(--brand);object-fit:cover}
+.av.big{width:110px;height:110px;font-size:32px;border-radius:14px}
+.res{border-radius:14px;padding:16px;margin-bottom:14px;display:flex;gap:14px;align-items:center}
+.res .av{width:64px;height:64px;font-size:22px}
+.res.ok .av{background:var(--ok)}.res.late .av{background:var(--late)}.res.bad .av{background:var(--bad)}
+.res h2{margin:0;font-size:22px}.res p{margin:2px 0 0}
+.res.ok{background:var(--okbg);color:var(--ok)}.res.late{background:var(--latebg);color:var(--late)}.res.bad{background:var(--badbg);color:var(--bad)}
+.res.idle{background:var(--surface);border:1px dashed var(--line);color:var(--mute)}
+.pick{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+.pick h3{margin:0 0 8px;font-size:16px}
+.duo{display:flex;gap:14px;justify-content:center;margin:10px 0}
+.scan{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.scan input{flex:1;min-width:150px;width:auto}
+.camwrap{border-radius:14px;overflow:hidden;background:#000;margin-bottom:12px;max-height:340px}
+.camwrap video{width:100%;max-height:340px;object-fit:cover;display:block}
+.btn{border:0;background:var(--brand);color:#fff;border-radius:10px;padding:12px 16px;font-weight:600;cursor:pointer;margin:0 8px 8px 0}
+.btn.alt{background:transparent;color:var(--mute);border:1px solid var(--line)}
+.btn.go{background:var(--ok);color:#fff}.btn.no{background:var(--bad);color:#fff}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.form .w{grid-column:1/-1}
+#s-links,#p-kids{display:grid;gap:6px;max-height:170px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink)}.chk input{width:auto}
+.srow{display:flex;gap:10px;align-items:center;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;flex-wrap:wrap}
+.grow{flex:1;min-width:140px}.grow b{display:block}.grow small{color:var(--mute)}
+.sm{padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font-weight:600;font-size:14px}
+.sm.d{color:var(--bad);border-color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px}
+.stat b{display:block;font-size:28px;line-height:1.1}.stat span{font-size:12px;color:var(--mute)}
+.stat.g b{color:var(--ok)}.stat.o b{color:var(--late)}.stat.r b{color:var(--bad)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:14px}
+th{font-size:12px;color:var(--mute);font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.t-present{background:var(--okbg);color:var(--ok)}.t-late{background:var(--latebg);color:var(--late)}.t-absent{background:var(--badbg);color:var(--bad)}.t-none{background:var(--bg);color:var(--mute)}
+.phone{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px}
+.n{display:flex;gap:10px;padding:10px;border-radius:12px;margin-bottom:8px;background:var(--bg)}
+.n i{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-style:normal;font-weight:800}
+.n.ok i{background:var(--okbg);color:var(--ok)}.n.late i{background:var(--latebg);color:var(--late)}.n.bad i{background:var(--badbg);color:var(--bad)}
+.n small{color:var(--mute)}
+.empty{color:var(--mute);padding:18px 8px;text-align:center}
+.note{font-size:13px;color:var(--mute);margin:6px 0 10px}
+.hidden{display:none}
+.ph-row{display:grid;gap:6px;font-size:12px;color:var(--mute)}.phbtns{display:flex;flex-wrap:wrap}
+.filebtn{position:relative;overflow:hidden;display:inline-block;font-size:16px}.filebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;padding:0}
+.pcam{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:50;display:grid;place-items:center;padding:16px}.pcam.hidden{display:none}
+.out{position:absolute;top:12px;right:12px;background:transparent;border:1px solid #B9C3DD;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px}
+.warn{background:var(--latebg);color:var(--late);padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:14px}
+.lgn{position:fixed;inset:0;z-index:60;background:var(--bg);display:grid;place-items:center;padding:16px;overflow:auto}.lgn.hidden{display:none}
+.lbox{max-width:420px;width:100%;display:grid;gap:10px}
+#lsetup,#llogin{display:grid;gap:10px}#lsetup.hidden,#llogin.hidden{display:none}
+.pbox{background:var(--surface);border-radius:14px;padding:12px;max-width:420px;width:100%}.pbox video{width:100%;border-radius:10px;background:#000;max-height:60vh;object-fit:cover;display:block}
+.idcard{width:210px;border:2px solid #16223F;border-radius:14px;padding:12px;text-align:center;background:#fff;color:#16223F;margin:8px 0;break-inside:avoid}
+.idcard .sch{font-weight:800;font-size:14px}.idcard .qr svg{width:100%;height:auto;display:block}.idcard small{display:block;color:#5E6A85}
+.cph{width:64px;height:64px;border-radius:8px;object-fit:cover;margin:4px auto;display:block}
+.cardimg{width:100%;max-width:460px;border-radius:10px;border:1px solid var(--line);display:block;margin:8px 0}
+#sheet{display:none}
+@media print{header,main{display:none!important}body{background:#fff}#sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px}.idcard{margin:0;width:auto}}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:1fr}}
+
+.toast{position:fixed;bottom:16px;left:16px;right:16px;max-width:520px;margin:auto;background:var(--brand);color:#fff;padding:12px 14px;border-radius:10px;z-index:80}.toast.hidden{display:none}
+#l-staff,#l-par{display:grid;gap:10px}#l-staff.hidden,#l-par.hidden{display:none}
+</style>
+</head>
+<body>
+<header><button class="out hidden" id="logout">Quitter</button><div class="wrap">
+<h1 id="title">École</h1>
+<p class="sub">Présence des élèves et sortie sécurisée</p>
+<nav role="tablist">
+<button role="tab" data-v="guard" aria-selected="true">Portail</button>
+<button role="tab" data-v="students" aria-selected="false">Élèves</button>
+<button role="tab" data-v="persons" aria-selected="false">Personnes</button>
+<button role="tab" data-v="admin" aria-selected="false">Direction</button>
+<button role="tab" data-v="parent" aria-selected="false">Mes enfants</button>
+</nav></div></header>
+<main>
+<div class="bar hidden" id="settings">
+<label>Nom de l’école<input id="school"></label>
+<label>Début des cours<input id="start" type="time"></label>
+<button class="btn" id="setsave" style="margin:0">Enregistrer</button>
+</div>
+
+<section id="v-guard" class="hidden">
+<div class="seg"><button data-m="in" aria-pressed="true">Entrée</button><button data-m="out" aria-pressed="false">Sortie</button></div>
+<div id="res" class="res idle"></div>
+<div id="pick" class="pick hidden"></div>
+<div class="scan"><button class="btn" id="cam">Scanner un code QR</button><input id="code" placeholder="Ou saisir le code de la carte" autocomplete="off"><button class="btn alt" id="ok">Valider</button></div>
+<div id="camwrap" class="camwrap hidden"><video id="vid" playsinline muted></video></div>
+<canvas id="cv" class="hidden"></canvas>
+<p class="note">Sortie : scannez la carte de l’élève ET la carte de la personne qui vient le chercher.</p>
+</section>
+
+<section id="v-students" class="hidden">
+<h3 id="ftitle">Ajouter un élève</h3>
+<div class="form">
+<label>Nom complet<input id="f-name" autocomplete="off"></label>
+<label>Classe<input id="f-cls" placeholder="ex. 6e A"></label>
+<div class="w ph-row"><span>Photo de l’élève</span><div class="phbtns"><button type="button" class="btn" id="f-cam">Prendre une photo</button><label class="btn alt filebtn">Choisir dans la galerie<input id="f-photo" type="file" accept="image/*"></label></div></div>
+</div>
+<div id="f-prev"></div>
+<label style="margin-top:10px">Parents et personnes liés à cet élève (cochez-en plusieurs si besoin)<div id="s-links"></div></label>
+<p id="fmsg" class="note"></p>
+<button class="btn" id="fsave">Enregistrer l’élève</button><button class="btn alt hidden" id="fcancel">Annuler</button>
+<div id="cardview"></div>
+<h3>Élèves enregistrés <span id="cnt"></span></h3>
+<div id="slist"></div>
+</section>
+
+<section id="v-persons" class="hidden">
+<h3 id="ptitle">Ajouter un parent ou une personne autorisée</h3>
+<div class="form">
+<label>Nom complet<input id="p-name" autocomplete="off"></label>
+<label>Lien avec l’enfant<input id="p-rel" placeholder="Maman, Papa, Tante…"></label>
+<label>Type<select id="p-type"><option value="parent">Parent ou tuteur (application + pièce d’identité)</option><option value="auth">Personne autorisée (carte obligatoire)</option></select></label>
+<label>Téléphone<input id="p-tel" type="tel" placeholder="+243 8…"></label>
+<div class="w ph-row"><span>Photo</span><div class="phbtns"><button type="button" class="btn" id="p-cam">Prendre une photo</button><label class="btn alt filebtn">Choisir dans la galerie<input id="p-photo" type="file" accept="image/*"></label></div></div>
+<label class="w">Enfants concernés (cochez plusieurs enfants si besoin)<div id="p-kids"></div></label>
+</div>
+<div id="p-prev"></div>
+<p id="pmsg" class="note"></p>
+<button class="btn" id="psave">Enregistrer la personne</button><button class="btn alt hidden" id="pcancel">Annuler</button>
+<div id="pcardview"></div>
+<h3>Personnes enregistrées <span id="pcnt"></span></h3>
+<div id="plist"></div>
+</section>
+
+<section id="v-admin" class="hidden">
+<div class="stats">
+<div class="stat"><b id="s-all">0</b><span>Élèves</span></div>
+<div class="stat g"><b id="s-p">0</b><span>Présents</span></div>
+<div class="stat o"><b id="s-l">0</b><span>En retard</span></div>
+<div class="stat r"><b id="s-a">0</b><span>Absents</span></div>
+</div>
+<table><thead><tr><th>Élève</th><th>Classe</th><th>Arrivée</th><th>Statut</th></tr></thead><tbody id="rows"></tbody></table>
+<button class="btn" id="close" style="margin-top:12px">Clôturer l’appel et alerter les parents</button>
+<button class="btn alt" id="refresh">Actualiser</button>
+<h3>Dernières alertes envoyées aux parents</h3><div id="adfeed" class="phone"></div>
+</section>
+
+<section id="v-parent" class="hidden">
+<div class="bar"><label>Mon enfant<select id="child"></select></label><button class="btn alt" id="notifbtn" style="margin:0">Activer les alertes sur cet appareil</button></div>
+<div class="phone" id="feed"></div>
+<p class="note">Les alertes apparaissent en direct quand l’application est ouverte.</p>
+</section>
+</main>
+
+<div id="login" class="lgn"><div class="lbox">
+<h2>Connexion</h2>
+<div class="seg" id="l-roles"><button data-r="staff" aria-pressed="true">Promoteur / Portier</button><button data-r="parent" aria-pressed="false">Parent</button></div>
+<div id="l-staff"><label>Adresse e-mail<input id="l-mail" type="email" autocomplete="username"></label><label>Mot de passe<input id="l-pass" type="password" autocomplete="current-password"></label><button class="btn" id="l-go">Se connecter</button></div>
+<div id="l-par" class="hidden"><label>Code d’accès donné par l’école<input id="l-code" autocomplete="off" placeholder="ex. K7M2QX9P"></label><button class="btn" id="l-pgo">Entrer</button></div>
+<p id="l-err" class="note"></p>
+</div></div>
+<div id="pcam" class="pcam hidden"><div class="pbox"><video id="pvid" playsinline muted autoplay></video><p id="pmsgc" class="note"></p><div><button class="btn go" id="psnap">Prendre la photo</button><button class="btn alt" id="pflip">Changer de caméra</button><button class="btn alt" id="pclose">Annuler</button></div></div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
