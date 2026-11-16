@@ -183,14 +183,273 @@ th{font-size:12px;color:var(--mute);font-weight:600}
 <div id="l-staff"><label>Adresse e-mail<input id="l-mail" type="email" autocomplete="username"></label><label>Mot de passe<input id="l-pass" type="password" autocomplete="current-password"></label><button class="btn" id="l-go">Se connecter</button></div>
 <div id="l-par" class="hidden"><label>Code d’accès donné par l’école<input id="l-code" autocomplete="off" placeholder="ex. K7M2QX9P"></label><button class="btn" id="l-pgo">Entrer</button></div>
 <p id="l-err" class="note"></p>
+<p class="note" style="opacity:.6">Version 2</p>
 </div></div>
 <div id="pcam" class="pcam hidden"><div class="pbox"><video id="pvid" playsinline muted autoplay></video><p id="pmsgc" class="note"></p><div><button class="btn go" id="psnap">Prendre la photo</button><button class="btn alt" id="pflip">Changer de caméra</button><button class="btn alt" id="pclose">Annuler</button></div></div></div>
 <div id="toast" class="toast hidden"></div>
 
-<script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// Réglages de votre projet Supabase (la clé « publishable » est publique, c'est normal)
+const CONFIG = {
+  url: "https://mdpbsapbxkqkpmhuqlcb.supabase.co",
+  key: "sb_publishable_SMGJG2zD8bu9c6FHZJbQbg_poT6aXfx"
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>if(!window.supabase)document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>')</script>
+<script>if(!window.supabase)document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\/script>')</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-<script src="app.js"></script>
+<script>
+window.addEventListener('error',e=>{const x=document.querySelector('#l-err');if(x&&!x.textContent)x.textContent='Erreur : '+e.message});
+window.addEventListener('unhandledrejection',e=>{const x=document.querySelector('#l-err');if(x&&!x.textContent&&!document.querySelector('#login').classList.contains('hidden'))x.textContent='Erreur : '+((e.reason&&e.reason.message)||e.reason)});
+if(typeof supabase==='undefined'){document.querySelector('#l-err').textContent='La bibliothèque Supabase ne s’est pas chargée. Vérifiez la connexion internet puis rechargez la page.';throw new Error('supabase manquant')}
+const $=s=>document.querySelector(s);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const sb=supabase.createClient(CONFIG.url,CONFIG.key);
+let ROLE=null,SET={name:'École',start_time:'07:45:00'},ST=[],PE=[],LK=[],AT=[],EV=[];
+let mode='in',stream=null,last={c:'',t:0},ex={s:null,p:null,fb:false},sEdit=null,pEdit=null,sPhoto='',pPhoto='',delS=null,delP=null,chan=null,poll=null;
+const PC='id,code,name,relation,kind,phone,photo,created_at';
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const hhmm=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())};
+const tm=t=>t?new Date(t).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'–';
+const first=n=>n.split(' ')[0];
+const ini=n=>n.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const stu=id=>ST.find(s=>s.id===id),per=id=>PE.find(p=>p.id===id);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),6000)}
+async function q(p){const r=await p;if(r.error){toast('Erreur : '+r.error.message);throw r.error}return r.data}
+async function one(p){const r=await p.maybeSingle();if(r.error){toast('Erreur : '+r.error.message);return null}return r.data}
+function av(o,cls){if(o.photo){const i=el('img','av '+(cls||''));i.src=o.photo;i.alt=o.name;return i}return el('span','av '+(cls||''),ini(o.name))}
+function readPhoto(inp,cb){const f=inp.files&&inp.files[0];if(!f)return;const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const m=Math.min(im.width,im.height),c=document.createElement('canvas');c.width=c.height=170;c.getContext('2d').drawImage(im,(im.width-m)/2,(im.height-m)/2,m,m,0,0,170,170);cb(c.toDataURL('image/jpeg',0.7))};im.src=fr.result};fr.readAsDataURL(f)}
+function prev(box,photo,name){const b=$(box);b.innerHTML='';if(photo)b.appendChild(av({photo,name:name||''},'big'))}
+const kidsOf=p=>LK.filter(l=>l.person_id===p.id).map(l=>stu(l.student_id)).filter(Boolean).map(s=>first(s.name)).join(', ');
+const cardS=s=>({code:s.code,name:s.name,photo:s.photo,sub:s.class_name,p:false});
+const cardP=p=>({code:p.code,name:p.name,photo:p.photo,sub:p.relation+' · pour '+(kidsOf(p)||'—'),p:true});
+
+/* ---------- Carte JPEG 85,6 × 54 mm (1011 × 638 px, 300 dpi) ---------- */
+const CW=1011,CH=638;
+const slug=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'carte';
+function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src})}
+function wrapT(x,t,px,py,mw,lh,ml){const w=t.split(' ');let l='',n=0;for(let i=0;i<w.length;i++){const test=l?l+' '+w[i]:w[i];if(x.measureText(test).width>mw&&l){x.fillText(l,px,py+n*lh);n++;l=w[i];if(n>=ml)return}else l=test}if(l&&n<ml)x.fillText(l,px,py+n*lh)}
+async function drawCard(o){const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const x=cv.getContext('2d');const F="'Bricolage Grotesque',system-ui,sans-serif";
+x.fillStyle='#fff';x.fillRect(0,0,CW,CH);x.fillStyle='#1B2A4A';x.fillRect(0,0,CW,96);
+x.fillStyle='#fff';x.textBaseline='middle';x.textAlign='left';x.font='800 42px '+F;x.fillText((SET.name||'École').slice(0,26),36,48);
+x.font='600 24px '+F;x.textAlign='right';x.fillText(o.p?'CARTE DE RÉCUPÉRATION':'CARTE ÉLÈVE',CW-36,48);x.textAlign='left';x.textBaseline='alphabetic';
+if(o.photo){try{x.drawImage(await loadImg(o.photo),36,124,250,250)}catch(e){}}else{x.fillStyle='#1B2A4A';x.fillRect(36,124,250,250);x.fillStyle='#fff';x.font='800 90px '+F;x.textAlign='center';x.fillText(ini(o.name),161,275);x.textAlign='left'}
+x.strokeStyle='#1B2A4A';x.lineWidth=4;x.strokeRect(36,124,250,250);
+x.fillStyle='#16223F';x.font='800 40px '+F;wrapT(x,o.name,312,170,320,48,3);
+x.fillStyle='#5E6A85';x.font='600 28px '+F;wrapT(x,o.sub,312,330,320,36,3);
+x.fillStyle='#16223F';x.font='700 36px monospace';x.fillText(o.code,36,440);
+const S2=330,qx=CW-36-S2,qy=118;x.fillStyle='#fff';x.fillRect(qx,qy,S2,S2);x.strokeStyle='#DDE2EC';x.lineWidth=2;x.strokeRect(qx,qy,S2,S2);
+if(typeof qrcode==='function'){const qr=qrcode(0,'M');qr.addData(o.code);qr.make();const n=qr.getModuleCount(),cell=Math.floor(S2/(n+8)),off=(S2-cell*n)/2;x.fillStyle='#000';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(qr.isDark(r,c))x.fillRect(Math.round(qx+off+c*cell),Math.round(qy+off+r*cell),cell,cell)}
+x.fillStyle='#5E6A85';x.font='600 24px '+F;x.fillText(o.p?'À présenter au portail avec l’élève':'À présenter au portail de l’école',36,CH-36);
+x.strokeStyle='#1B2A4A';x.lineWidth=8;x.strokeRect(4,4,CW-8,CH-8);return cv}
+async function jpegBlob(cv){const b=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.92));const u=new Uint8Array(await b.arrayBuffer());
+if(u[0]===0xFF&&u[1]===0xD8&&u[2]===0xFF&&u[3]===0xE0&&u[6]===0x4A){u[13]=1;u[14]=1;u[15]=0x2C;u[16]=1;u[17]=0x2C}return new Blob([u],{type:'image/jpeg'})}
+async function showCard(o,box){const v=$(box);v.innerHTML='';v.appendChild(el('p','note','Création de la carte…'));
+const blob=await jpegBlob(await drawCard(o));const name='carte-'+slug(o.name)+'-'+o.code+'.jpg';
+v.innerHTML='';const im=el('img','cardimg');im.src=URL.createObjectURL(blob);im.alt='Carte de '+o.name;v.appendChild(im);
+const msg=el('p','note','JPEG 1011 × 638 px = 85,6 × 54 mm à 300 dpi (carte d’identité ID-1). Imprimez-la à 100 % (taille réelle). Vous pouvez aussi appuyer longuement sur l’image pour l’enregistrer.');
+const b=el('button','btn go','Enregistrer l’image (JPEG)');b.onclick=()=>{const a=document.createElement('a');a.href=im.src;a.download=name;document.body.appendChild(a);a.click();a.remove();msg.textContent='Image envoyée vers vos téléchargements. Sur téléphone, utilisez « Partager l’image » pour l’enregistrer dans la galerie.'};v.appendChild(b);
+try{const f=new File([blob],name,{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[f]})){const sh=el('button','btn alt','Partager l’image');sh.onclick=async()=>{try{await navigator.share({files:[f],title:name})}catch(e){}};v.appendChild(sh)}}catch(e){}
+const c=el('button','btn alt','Fermer');c.onclick=()=>{v.innerHTML=''};v.append(c,msg)}
+
+/* ---------- Données ---------- */
+async function loadSettings(){const s=await one(sb.from('school_settings').select('*').eq('id',1));if(s)SET=s;$('#title').textContent=SET.name;$('#school').value=SET.name;$('#start').value=SET.start_time.slice(0,5)}
+async function loadAdmin(){[ST,PE,LK,AT,EV]=await Promise.all([q(sb.from('students').select('*').order('created_at')),q(sb.from('persons').select(PC).order('created_at')),q(sb.from('person_students').select('*')),q(sb.from('attendance').select('*').eq('day',today())),q(sb.from('events').select('*').order('created_at',{ascending:false}).limit(100))]);render()}
+async function loadParent(){[ST,EV]=await Promise.all([q(sb.from('students').select('*').order('name')),q(sb.from('events').select('*').order('created_at',{ascending:false}).limit(150))]);render()}
+function notify(e){try{if('Notification' in window&&Notification.permission==='granted')new Notification(e.title,{body:e.body})}catch(x){}}
+function subscribe(){if(chan)sb.removeChannel(chan);clearInterval(poll);
+if(ROLE==='gate')return;
+chan=sb.channel('ev').on('postgres_changes',{event:'INSERT',schema:'public',table:'events'},p=>{if(ROLE==='parent'){notify(p.new);loadParent()}else if(ROLE==='admin')loadAdmin()}).subscribe();
+if(ROLE==='parent')poll=setInterval(loadParent,60000)}
+const ev=(sid,kind,title,body)=>q(sb.from('events').insert({student_id:sid,kind,title,body}));
+
+/* ---------- Connexion et rôles ---------- */
+function err(t){$('#l-err').textContent=t||''}
+function showLogin(msg){stopCam();ROLE=null;clearInterval(poll);$('#login').classList.remove('hidden');$('#logout').classList.add('hidden');err(msg)}
+function setLR(r){document.querySelectorAll('#l-roles button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.r===r));$('#l-staff').classList.toggle('hidden',r!=='staff');$('#l-par').classList.toggle('hidden',r!=='parent');err('')}
+async function afterAuth(){const {data:{session}}=await sb.auth.getSession();if(!session){showLogin();return}
+const pr=await one(sb.from('profiles').select('role').eq('user_id',session.user.id));await loadSettings();
+if(pr){ROLE=pr.role;if(ROLE==='admin')await loadAdmin()}
+else{ROLE='parent';await loadParent();if(!ST.length){showLogin('Aucun enfant n’est lié à cet appareil. Entrez le code d’accès donné par l’école.');setLR('parent');return}}
+enter()}
+function enter(){$('#login').classList.add('hidden');const allow=ROLE==='admin'?['guard','students','persons','admin']:ROLE==='gate'?['guard']:['parent'];
+document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('hidden',!allow.includes(b.dataset.v)));
+$('nav').classList.toggle('hidden',allow.length<2);$('#settings').classList.toggle('hidden',ROLE!=='admin');
+const lb=$('#logout');lb.classList.remove('hidden');lb.textContent='Quitter ('+(ROLE==='admin'?'Promoteur':ROLE==='gate'?'Portier':'Parent')+')';
+subscribe();document.querySelector('nav button[data-v="'+allow[0]+'"]').click();idle()}
+async function staffLogin(){err();const {error}=await sb.auth.signInWithPassword({email:$('#l-mail').value.trim(),password:$('#l-pass').value});
+if(error){err('Connexion refusée : '+error.message);return}
+const {data:{session}}=await sb.auth.getSession();const pr=await one(sb.from('profiles').select('role').eq('user_id',session.user.id));
+if(!pr){await sb.auth.signOut();err('Ce compte n’a pas de rôle. Demandez au promoteur de l’activer.');return}
+$('#l-pass').value='';await afterAuth()}
+async function parentLogin(){err();const code=$('#l-code').value.trim().toUpperCase();if(!code){err('Saisissez votre code.');return}
+let {data:{session}}=await sb.auth.getSession();
+if(session){const pr=await one(sb.from('profiles').select('role').eq('user_id',session.user.id));if(pr){await sb.auth.signOut();session=null}}
+if(!session){const {error}=await sb.auth.signInAnonymously();if(error){err('Connexion impossible : '+error.message);return}}
+const {data,error}=await sb.rpc('claim_parent',{p_code:code});if(error){err(error.message);return}
+if(!data||!data.ok){err('Code inconnu, ou accès désactivé car aucun enfant n’est inscrit.');return}
+await afterAuth()}
+
+/* ---------- Portail ---------- */
+function setRes(cls,h,p,o){const r=$('#res');r.className='res '+cls;r.innerHTML='';if(o)r.appendChild(av(o));const d=el('div');d.append(el('h2',null,h),el('p',null,p));r.appendChild(d)}
+function idle(){setRes('idle','Prêt à scanner',mode==='in'?'Mode entrée : scannez la carte d’un élève.':'Mode sortie : scannez la carte de l’élève et celle de la personne qui le récupère.')}
+function resetEx(){ex={s:null,p:null,fb:false};$('#pick').classList.add('hidden')}
+const attOf=sid=>one(sb.from('attendance').select('*').eq('student_id',sid).eq('day',today()));
+async function handleCode(raw){const code=(raw||'').trim().toUpperCase();if(!code)return;
+const unknown=()=>setRes('bad','Carte inconnue','Ce code n’est enregistré nulle part : '+code);
+if(code.startsWith('ELV-')){const s=await one(sb.from('students').select('*').eq('code',code));if(!s){unknown();return}
+if(mode==='in')await entry(s);else{const a=await attOf(s.id);
+if(!a||a.status==='absent'){setRes('bad','Sortie impossible',s.name+' n’est pas enregistré(e) à l’école aujourd’hui.',s);return}
+if(a.left_at){setRes('late','Déjà sorti(e)',s.name+' a été récupéré(e) par '+a.left_by+' à '+tm(a.left_at)+'.',s);return}
+ex.s=s;ex.fb=false;await showExit()}return}
+if(code.startsWith('PER-')){const p=await one(sb.from('persons').select(PC).eq('code',code));if(!p){unknown();return}
+if(mode==='in'){setRes('late','Carte de personne','Cette carte sert à la sortie. Passez en mode Sortie.',p);return}
+ex.p=p;await showExit();return}
+unknown()}
+async function entry(s){const a=await attOf(s.id);
+if(a&&(a.status==='present'||a.status==='late')){setRes('late','Déjà enregistré',s.name+' est entré(e) à '+tm(a.arrived_at)+'.',s);return}
+const late=hhmm()>SET.start_time.slice(0,5);
+await q(sb.from('attendance').upsert({student_id:s.id,day:today(),status:late?'late':'present',arrived_at:new Date().toISOString(),left_at:null,left_by:null,left_how:null},{onConflict:'student_id,day'}));
+await ev(s.id,late?'late':'ok',late?'Arrivée en retard':'Arrivée à l’école',s.name+' est arrivé(e) à '+hhmm()+(late?' (en retard).':' (à l’heure).'));
+setRes(late?'late':'ok',late?'EN RETARD':'À L’HEURE',s.name+' · '+s.class_name+' · '+hhmm()+'. Parent prévenu.',s)}
+function row(o,label){const r=el('div','srow');r.appendChild(av(o));const g=el('div','grow');g.append(el('b',null,o.name),el('small',null,label));r.appendChild(g);return r}
+function waiting(t){const r=el('div','srow');r.appendChild(el('span','av','?'));const g=el('div','grow');g.appendChild(el('small',null,t));r.appendChild(g);return r}
+function mkBtn(t,c,f){const b=el('button','btn '+c,t);b.onclick=f;return b}
+async function showExit(){const pk=$('#pick');pk.innerHTML='';pk.classList.remove('hidden');const s=ex.s,p=ex.p;
+pk.appendChild(el('h3',null,'Sortie : vérification'));
+pk.appendChild(s?row(s,s.class_name+' · élève'):waiting('En attente de la carte de l’élève'));
+if(ex.fb&&s){await showFallback(s,pk);return}
+pk.appendChild(p?row(p,p.relation+(p.kind==='parent'?' · parent':' · personne autorisée')):waiting('En attente de la carte de la personne qui récupère l’enfant'));
+if(s&&p){const l=await one(sb.from('person_students').select('person_id').eq('person_id',p.id).eq('student_id',s.id));
+if(!l){await refuse(s,p.name+' n’est pas autorisé(e) à récupérer cet enfant.',p);return}
+pk.appendChild(el('p','note','Carte valide. Comparez les photos avec les personnes présentes, puis confirmez.'));
+const d=el('div','duo');d.append(av(s,'big'),av(p,'big'));pk.appendChild(d);
+pk.append(mkBtn('Confirmer la remise','go',()=>pickup(s,p,'carte QR')),mkBtn('Refuser (doute)','no',()=>refuse(s,'Refusée par le gardien : doute sur l’identité de '+p.name+'.',p)))}
+if(s&&!p)pk.appendChild(mkBtn('Parent sans carte : vérifier sa pièce d’identité','alt',()=>{ex.fb=true;showExit()}));
+pk.appendChild(mkBtn('Annuler','alt',()=>{resetEx();idle()}))}
+async function showFallback(s,pk){const links=await q(sb.from('person_students').select('person_id').eq('student_id',s.id));const ids=links.map(x=>x.person_id);
+const ps=ids.length?await q(sb.from('persons').select(PC).in('id',ids).eq('kind','parent')):[];
+pk.appendChild(el('p','note','Demandez la pièce d’identité complète, puis comparez le nom et la photo avec la fiche enregistrée.'));
+if(!ps.length)pk.appendChild(el('div','empty','Aucun parent enregistré pour cet élève.'));
+ps.forEach(p=>{const r=row(p,p.relation+(p.phone?' · '+p.phone:''));r.appendChild(mkBtn('Identité vérifiée','go',()=>pickup(s,p,'pièce d’identité')));pk.appendChild(r)});
+pk.appendChild(mkBtn('Retour','alt',()=>{ex.fb=false;showExit()}))}
+async function pickup(s,p,how){const who=p.name+' ('+p.relation+')';
+await q(sb.from('attendance').update({left_at:new Date().toISOString(),left_by:who,left_how:how}).eq('student_id',s.id).eq('day',today()));
+await ev(s.id,'ok','Sortie sécurisée',s.name+' a été récupéré(e) par '+who+' à '+hhmm()+' · vérifié par '+how+'.');
+setRes('ok','SORTIE AUTORISÉE',s.name+' part avec '+p.name+' ('+how+'). Parent prévenu.',s);resetEx()}
+async function refuse(s,why,p){await ev(s.id,'bad','Remise refusée',why+' '+first(s.name)+' reste à l’école.');
+setRes('bad','REMISE REFUSÉE',why+' '+first(s.name)+' reste à l’école, le parent est alerté.',p||s);resetEx()}
+async function startCam(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});const v=$('#vid');v.srcObject=stream;await v.play();$('#camwrap').classList.remove('hidden');$('#cam').textContent='Arrêter la caméra';loop()}catch(e){stream=null;setRes('bad','Caméra indisponible','Autorisez la caméra, ou saisissez le code de la carte à la main.')}}
+function stopCam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('#camwrap').classList.add('hidden');$('#cam').textContent='Scanner un code QR'}
+function loop(){if(!stream)return;const v=$('#vid');
+if(v.readyState===4&&v.videoWidth&&typeof jsQR==='function'){const cv=$('#cv'),sc=Math.min(1,640/v.videoWidth);cv.width=v.videoWidth*sc;cv.height=v.videoHeight*sc;const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(v,0,0,cv.width,cv.height);const d=x.getImageData(0,0,cv.width,cv.height);const r=jsQR(d.data,d.width,d.height);
+if(r&&r.data){const t=Date.now();if(r.data!==last.c||t-last.t>4000){last={c:r.data,t};handleCode(r.data)}}}
+requestAnimationFrame(loop)}
+
+/* ---------- Élèves ---------- */
+function clearS(){['f-name','f-cls','f-photo'].forEach(i=>$('#'+i).value='');sPhoto='';prev('#f-prev','');sEdit=null;buildLinks([]);$('#ftitle').textContent='Ajouter un élève';$('#fsave').textContent='Enregistrer l’élève';$('#fcancel').classList.add('hidden')}
+async function saveStudent(){const name=$('#f-name').value.trim(),m=$('#fmsg');if(!name){m.textContent='Saisissez le nom de l’élève.';return}
+const row={name,class_name:$('#f-cls').value.trim()||'–'};if(sPhoto)row.photo=sPhoto;let id=sEdit;const isNew=!sEdit;
+if(sEdit)await q(sb.from('students').update(row).eq('id',sEdit));else id=(await q(sb.from('students').insert(row).select('id')))[0].id;
+const want=Array.from($('#s-links').querySelectorAll('input:checked'),i=>i.value);
+await q(sb.from('person_students').delete().eq('student_id',id));
+if(want.length)await q(sb.from('person_students').insert(want.map(pid=>({person_id:pid,student_id:id}))));
+clearS();await loadAdmin();
+if(isNew){showCard(cardS(stu(id)),'#cardview');m.textContent=name+' est enregistré(e). Enregistrez sa carte en JPEG ci-dessous.'+(want.length?' Les parents liés peuvent ouvrir l’application avec leur code.':' Ajoutez ses parents dans l’onglet Personnes.')}else m.textContent='Fiche modifiée.'}
+function editStudent(id){const s=stu(id);sEdit=id;$('#f-name').value=s.name;$('#f-cls').value=s.class_name;sPhoto='';prev('#f-prev',s.photo,s.name);buildLinks(LK.filter(l=>l.student_id===id).map(l=>l.person_id));$('#ftitle').textContent='Modifier '+s.name;$('#fsave').textContent='Enregistrer les modifications';$('#fcancel').classList.remove('hidden');$('#v-students').scrollIntoView()}
+function buildLinks(sel){const b=$('#s-links');const cur=sel||Array.from(b.querySelectorAll('input:checked'),i=>i.value);b.innerHTML='';
+if(!PE.length){b.appendChild(el('small',null,'Aucune personne enregistrée. Ajoutez d’abord les parents dans l’onglet Personnes, ou liez-les ensuite.'));return}
+PE.forEach(p=>{const l=el('label','chk');const i=document.createElement('input');i.type='checkbox';i.value=p.id;i.checked=cur.includes(p.id);l.append(i,document.createTextNode(p.name+' ('+p.relation+')'));b.appendChild(l)})}
+const delBtn=(armed,fn)=>{const b=el('button','sm d',armed?'Confirmer la suppression':'Supprimer');b.onclick=fn;return b};
+function renderStudents(){buildLinks();const sl=$('#slist');sl.innerHTML='';$('#cnt').textContent='('+ST.length+')';
+if(!ST.length)sl.appendChild(el('div','empty','Aucun élève pour le moment. Remplissez le formulaire ci-dessus.'));
+ST.forEach(s=>{const r=el('div','srow');r.appendChild(av(s));const g=el('div','grow');const n=LK.filter(l=>l.student_id===s.id).length;g.append(el('b',null,s.name),el('small',null,s.class_name+' · '+s.code+' · '+n+' personne(s) liée(s)'));r.appendChild(g);
+const b1=el('button','sm','Carte JPEG');b1.onclick=()=>{showCard(cardS(s),'#cardview');$('#cardview').scrollIntoView()};
+const b2=el('button','sm','Modifier');b2.onclick=()=>editStudent(s.id);
+r.append(b1,b2,delBtn(delS===s.id,async()=>{if(delS===s.id){await q(sb.from('students').delete().eq('id',s.id));delS=null;$('#cardview').innerHTML='';await loadAdmin()}else{delS=s.id;renderStudents()}}));sl.appendChild(r)})}
+
+/* ---------- Personnes ---------- */
+function buildKids(sel){const b=$('#p-kids');const cur=sel||Array.from(b.querySelectorAll('input:checked'),i=>i.value);b.innerHTML='';
+if(!ST.length){b.appendChild(el('small',null,'Enregistrez d’abord les élèves.'));return}
+ST.forEach(s=>{const l=el('label','chk');const i=document.createElement('input');i.type='checkbox';i.value=s.id;i.checked=cur.includes(s.id);l.append(i,document.createTextNode(s.name+' ('+s.class_name+')'));b.appendChild(l)})}
+function clearP(){['p-name','p-rel','p-tel','p-photo'].forEach(i=>$('#'+i).value='');$('#p-type').value='parent';pPhoto='';prev('#p-prev','');pEdit=null;buildKids([]);$('#ptitle').textContent='Ajouter un parent ou une personne autorisée';$('#psave').textContent='Enregistrer la personne';$('#pcancel').classList.add('hidden')}
+async function savePerson(){const name=$('#p-name').value.trim(),m=$('#pmsg');const kids=Array.from($('#p-kids').querySelectorAll('input:checked'),i=>i.value);
+if(!name){m.textContent='Saisissez le nom de la personne.';return}if(!kids.length){m.textContent='Choisissez au moins un enfant.';return}
+const row={name,relation:$('#p-rel').value.trim()||'Personne autorisée',kind:$('#p-type').value,phone:$('#p-tel').value.trim()||null};if(pPhoto)row.photo=pPhoto;let id=pEdit;const isNew=!pEdit;
+if(pEdit)await q(sb.from('persons').update(row).eq('id',pEdit));else id=(await q(sb.from('persons').insert(row).select('id')))[0].id;
+await q(sb.from('person_students').delete().eq('person_id',id));
+await q(sb.from('person_students').insert(kids.map(k=>({person_id:id,student_id:k}))));
+clearP();await loadAdmin();
+if(isNew){showCard(cardP(per(id)),'#pcardview');m.textContent=name+' est enregistré(e). Enregistrez sa carte en JPEG ci-dessous.'+(row.kind==='parent'?' Utilisez « Code d’accès » pour donner son code à l’application parent.':'')}else m.textContent='Fiche modifiée.'}
+function editPerson(id){const p=per(id);pEdit=id;$('#p-name').value=p.name;$('#p-rel').value=p.relation;$('#p-type').value=p.kind;$('#p-tel').value=p.phone||'';pPhoto='';prev('#p-prev',p.photo,p.name);buildKids(LK.filter(l=>l.person_id===id).map(l=>l.student_id));$('#ptitle').textContent='Modifier '+p.name;$('#psave').textContent='Enregistrer les modifications';$('#pcancel').classList.remove('hidden');$('#v-persons').scrollIntoView()}
+function renderPersons(){buildKids();const pl=$('#plist');pl.innerHTML='';$('#pcnt').textContent='('+PE.length+')';
+if(!PE.length)pl.appendChild(el('div','empty','Aucune personne enregistrée. Ajoutez les parents et les personnes autorisées.'));
+PE.forEach(p=>{const r=el('div','srow');r.appendChild(av(p));const g=el('div','grow');g.append(el('b',null,p.name),el('small',null,p.relation+' · '+(p.kind==='parent'?'parent':'autorisé(e)')+' · pour '+(kidsOf(p)||'aucun enfant')+' · '+p.code));r.appendChild(g);
+const b1=el('button','sm','Carte JPEG');b1.onclick=()=>{showCard(cardP(p),'#pcardview');$('#pcardview').scrollIntoView()};
+const b2=el('button','sm','Modifier');b2.onclick=()=>editPerson(p.id);r.append(b1,b2);
+if(p.kind==='parent'){const b3=el('button','sm','Code d’accès');b3.onclick=async()=>{const c=await q(sb.rpc('access_code_of',{p_id:p.id}));$('#pmsg').textContent='Code d’accès de '+p.name+' : '+c+' (à lui donner, à garder secret).';$('#pmsg').scrollIntoView()};
+const b4=el('button','sm','Retirer ses appareils');b4.onclick=async()=>{await q(sb.from('person_devices').delete().eq('person_id',p.id));$('#pmsg').textContent='Les appareils de '+p.name+' sont déconnectés. Il faudra ressaisir son code.'};r.append(b3,b4)}
+r.appendChild(delBtn(delP===p.id,async()=>{if(delP===p.id){await q(sb.from('persons').delete().eq('id',p.id));delP=null;$('#pcardview').innerHTML='';await loadAdmin()}else{delP=p.id;renderPersons()}}));pl.appendChild(r)})}
+
+/* ---------- Direction et parents ---------- */
+function feedItem(x){const d=el('div','n '+x.kind);d.appendChild(el('i',null,x.kind==='ok'?'✓':'!'));const w=el('div');
+w.append(el('b',null,x.title),el('br'),el('span',null,x.body),el('br'),el('small',null,new Date(x.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})));d.appendChild(w);return d}
+function renderDirection(){const m=new Map(AT.map(a=>[a.student_id,a]));let P=0,L=0,A=0;const r=$('#rows');r.innerHTML='';
+ST.forEach(s=>{const a=m.get(s.id),k=a?a.status:'none';if(k==='present')P++;if(k==='late')L++;if(k==='absent')A++;
+const tr=el('tr');[s.name,s.class_name,a&&a.arrived_at?tm(a.arrived_at):'–'].forEach(v=>tr.appendChild(el('td',null,v)));
+const lab={present:'À l’heure',late:'En retard',absent:'Absent',none:'Pas encore arrivé'}[k];const td=el('td');td.appendChild(el('span','tag t-'+k,lab+(a&&a.left_at?' · sorti(e) avec '+a.left_by:'')));tr.appendChild(td);r.appendChild(tr)});
+$('#s-all').textContent=ST.length;$('#s-p').textContent=P;$('#s-l').textContent=L;$('#s-a').textContent=A;
+const f=$('#adfeed');f.innerHTML='';if(!EV.length)f.appendChild(el('div','empty','Aucune alerte pour le moment.'));EV.slice(0,40).forEach(x=>f.appendChild(feedItem(x)))}
+function renderParent(){const sel=$('#child');const keep=sel.value;sel.innerHTML='';
+if(ST.length>1){const o=el('option',null,'Tous mes enfants');o.value='*';sel.appendChild(o)}
+ST.forEach(s=>{const o=el('option',null,s.name+' ('+s.class_name+')');o.value=s.id;sel.appendChild(o)});
+if(keep&&Array.from(sel.options).some(o=>o.value===keep))sel.value=keep;
+sel.parentElement.classList.toggle('hidden',ST.length<2);
+const f=$('#feed');f.innerHTML='';
+if(!ST.length){f.appendChild(el('div','empty','Votre accès n’est plus actif : aucun enfant n’est inscrit à l’école pour ce code.'));return}
+const ids=ST.map(s=>s.id);const mine=EV.filter(x=>sel.value==='*'?ids.includes(x.student_id):x.student_id===sel.value);
+if(!mine.length)f.appendChild(el('div','empty','Aucune notification pour le moment.'));mine.forEach(x=>f.appendChild(feedItem(x)))}
+function render(){if(ROLE==='admin'){renderStudents();renderPersons();renderDirection()}if(ROLE==='parent')renderParent()}
+async function closeRoll(){const done=new Set(AT.map(a=>a.student_id));const miss=ST.filter(s=>!done.has(s.id));if(!miss.length){toast('Tous les élèves sont déjà enregistrés.');return}
+await q(sb.from('attendance').insert(miss.map(s=>({student_id:s.id,day:today(),status:'absent'}))));
+await q(sb.from('events').insert(miss.map(s=>({student_id:s.id,kind:'bad',title:'Alerte d’absence',body:s.name+' n’est pas encore arrivé(e) à l’école. Aucun passage enregistré à '+SET.start_time.slice(0,5)+'.'}))));await loadAdmin()}
+
+/* ---------- Photo par la caméra ---------- */
+let pcStream=null,pcTarget=null,pcFace='user';
+async function startPc(){stopPc();try{pcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:pcFace}});const v=$('#pvid');v.srcObject=pcStream;await v.play();$('#pmsgc').textContent=''}catch(e){$('#pmsgc').textContent='Caméra bloquée. Autorisez la caméra dans le navigateur, ou choisissez une photo dans la galerie.'}}
+function stopPc(){if(pcStream)pcStream.getTracks().forEach(t=>t.stop());pcStream=null}
+function closePc(){stopPc();$('#pcam').classList.add('hidden')}
+function openCam(t){pcTarget=t;$('#pcam').classList.remove('hidden');startPc()}
+function snap(){const v=$('#pvid');if(!pcStream||!v.videoWidth){$('#pmsgc').textContent='La caméra n’est pas prête.';return}
+const m=Math.min(v.videoWidth,v.videoHeight),c=document.createElement('canvas');c.width=c.height=170;c.getContext('2d').drawImage(v,(v.videoWidth-m)/2,(v.videoHeight-m)/2,m,m,0,0,170,170);const d=c.toDataURL('image/jpeg',0.7);
+if(pcTarget==='s'){sPhoto=d;prev('#f-prev',d)}else{pPhoto=d;prev('#p-prev',d)}closePc()}
+
+/* ---------- Branchements ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
+['guard','students','persons','admin','parent'].forEach(v=>$('#v-'+v).classList.toggle('hidden',v!==b.dataset.v));if(b.dataset.v!=='guard')stopCam();render()});
+document.querySelectorAll('.seg:not(#l-roles) button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('.seg:not(#l-roles) button').forEach(x=>x.setAttribute('aria-pressed',x===b));resetEx();idle()});
+document.querySelectorAll('#l-roles button').forEach(b=>b.onclick=()=>setLR(b.dataset.r));
+$('#l-go').onclick=staffLogin;$('#l-pass').onkeydown=e=>{if(e.key==='Enter')staffLogin()};
+$('#l-pgo').onclick=parentLogin;$('#l-code').onkeydown=e=>{if(e.key==='Enter')parentLogin()};
+$('#logout').onclick=async()=>{await sb.auth.signOut();ST=[];PE=[];LK=[];AT=[];EV=[];showLogin()};
+$('#cam').onclick=()=>stream?stopCam():startCam();
+$('#ok').onclick=()=>{handleCode($('#code').value);$('#code').value=''};
+$('#code').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#ok').click()}};
+$('#f-photo').onchange=function(){readPhoto(this,d=>{sPhoto=d;prev('#f-prev',d)});this.value=''};
+$('#p-photo').onchange=function(){readPhoto(this,d=>{pPhoto=d;prev('#p-prev',d)});this.value=''};
+$('#f-cam').onclick=()=>openCam('s');$('#p-cam').onclick=()=>openCam('p');$('#psnap').onclick=snap;$('#pclose').onclick=closePc;
+$('#pflip').onclick=()=>{pcFace=pcFace==='user'?'environment':'user';startPc()};
+$('#fsave').onclick=saveStudent;$('#fcancel').onclick=()=>{clearS();$('#fmsg').textContent=''};
+$('#psave').onclick=savePerson;$('#pcancel').onclick=()=>{clearP();$('#pmsg').textContent=''};
+$('#child').onchange=render;
+$('#close').onclick=closeRoll;$('#refresh').onclick=loadAdmin;
+$('#setsave').onclick=async()=>{const name=$('#school').value.trim()||'Mon école',t=$('#start').value||'07:45';await q(sb.from('school_settings').update({name,start_time:t}).eq('id',1));SET.name=name;SET.start_time=t+':00';$('#title').textContent=name;toast('Réglages enregistrés.')};
+$('#notifbtn').onclick=async()=>{try{const r=await Notification.requestPermission();toast(r==='granted'?'Alertes activées sur cet appareil.':'Alertes refusées par le navigateur.')}catch(e){toast('Alertes non disponibles sur cet appareil.')}};
+sb.auth.onAuthStateChange(()=>{});
+afterAuth();
+</script>
 </body>
 </html>
